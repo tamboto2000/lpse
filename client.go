@@ -112,7 +112,7 @@ func extractAuthTokenPart1(val string) string {
 func extractAuthTokenPart2(val string) string {
 	rgx := regexp.MustCompile(`___TS=([a-zA-Z0-9_.-]*)`)
 	matches := rgx.FindAllString(val, 1)
-	if len(matches) != 0 {
+	if matches == nil {
 		token := matches[0]
 		token = strings.ReplaceAll(token, "___TS=", "")
 		return token
