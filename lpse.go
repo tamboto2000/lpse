@@ -6,6 +6,8 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"regexp"
+	"strings"
 )
 
 const host = "https://lpse.pu.go.id"
@@ -34,7 +36,9 @@ type Package struct {
 }
 
 type Client struct {
-	cookies *cookies
+	cookies    *cookies
+	authToken1 string
+	authToken2 string
 }
 
 func NewClient() *Client {
@@ -42,7 +46,7 @@ func NewClient() *Client {
 }
 
 func (cl *Client) Init() error {
-	req, err := http.NewRequest("GET", host, nil)
+	req, err := http.NewRequest("GET", host+"/eproc4/lelang", nil)
 	if err != nil {
 		return err
 	}
@@ -72,6 +76,25 @@ func (cl *Client) Init() error {
 
 	if resp.StatusCode > 200 {
 		return errors.New(string(body))
+	}
+
+	// extract auth token
+	for _, c := range resp.Cookies() {
+		if c.Name == "SPSE_SESSION" {
+			if token := extractAuthTokenPart1(c.Raw); token != "" {
+				cl.authToken1 = token
+			} else {
+				return errors.New("authenticity token not found")
+			}
+
+			if token := extractAuthTokenPart2(c.Raw); token != "" {
+				cl.authToken2 = token
+			} else {
+				return errors.New("authenticity token not found")
+			}
+
+			break
+		}
 	}
 
 	cl.cookies.set(resp.Cookies())
@@ -111,4 +134,28 @@ func decompressResponseBody(resp *http.Response) (*bytes.Buffer, error) {
 	}
 
 	return buff, nil
+}
+
+func extractAuthTokenPart1(val string) string {
+	rgx := regexp.MustCompile(`___AT=([a-zA-Z0-9_.-]*)`)
+	matches := rgx.FindAllString(val, 1)
+	if len(matches) != 0 {
+		token := matches[0]
+		token = strings.ReplaceAll(token, "___AT=", "")
+		return token
+	}
+
+	return ""
+}
+
+func extractAuthTokenPart2(val string) string {
+	rgx := regexp.MustCompile(`___TS=([a-zA-Z0-9_.-]*)`)
+	matches := rgx.FindAllString(val, 1)
+	if len(matches) != 0 {
+		token := matches[0]
+		token = strings.ReplaceAll(token, "___TS=", "")
+		return token
+	}
+
+	return ""
 }
