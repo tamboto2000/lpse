@@ -62,13 +62,13 @@ func (cl *Client) Init() error {
 			if token := extractAuthTokenPart1(c.Raw); token != "" {
 				cl.authToken1 = token
 			} else {
-				return errors.New("authenticity token not found")
+				return errors.New("authenticity token (1) not found")
 			}
 
 			if token := extractAuthTokenPart2(c.Raw); token != "" {
 				cl.authToken2 = token
 			} else {
-				return errors.New("authenticity token not found")
+				return errors.New("authenticity token (2) not found")
 			}
 
 			break
@@ -100,7 +100,7 @@ func decompressResponseBody(resp *http.Response) (*bytes.Buffer, error) {
 func extractAuthTokenPart1(val string) string {
 	rgx := regexp.MustCompile(`___AT=([a-zA-Z0-9_.-]*)`)
 	matches := rgx.FindAllString(val, 1)
-	if len(matches) != 0 {
+	if matches != nil {
 		token := matches[0]
 		token = strings.ReplaceAll(token, "___AT=", "")
 		return token
@@ -112,7 +112,7 @@ func extractAuthTokenPart1(val string) string {
 func extractAuthTokenPart2(val string) string {
 	rgx := regexp.MustCompile(`___TS=([a-zA-Z0-9_.-]*)`)
 	matches := rgx.FindAllString(val, 1)
-	if matches == nil {
+	if matches != nil {
 		token := matches[0]
 		token = strings.ReplaceAll(token, "___TS=", "")
 		return token
