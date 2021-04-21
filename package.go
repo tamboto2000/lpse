@@ -90,6 +90,7 @@ func (pkgs *Packages) Next(page int) bool {
 			PackageName:       rawPkg.getPkgName(),
 			Agency:            rawPkg.getAgency(),
 			Stage:             rawPkg.getStage(),
+			StageURl:          rawPkg.getStageURL(),
 			HPSStr:            rawPkg.getHPSStr(),
 			ProcurementSystem: rawPkg.getProcSys(),
 			Status:            rawPkg.getStatus(),

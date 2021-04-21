@@ -61,3 +61,7 @@ func (pkgData packageData) getCategory() string {
 
 	return category
 }
+
+func (pkgData packageData) getStageURL() string {
+	return "https://lpse.pu.go.id/eproc4/lelang/" + pkgData.getCode() + "/jadwal"
+}
