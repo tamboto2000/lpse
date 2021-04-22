@@ -2,6 +2,7 @@ package lpse
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -64,4 +65,35 @@ func (pkgData packageData) getCategory() string {
 
 func (pkgData packageData) getStageURL() string {
 	return "https://lpse.pu.go.id/eproc4/lelang/" + pkgData.getCode() + "/jadwal"
+}
+
+func (pkgData packageData) getDate() Date {
+	var date Date
+	str := pkgData[8]
+	rgx := regexp.MustCompile(` - [A-Z]* [0-9]*`)
+	matches := rgx.FindAllString(str, 1)
+	var dateStr string
+	if matches != nil {
+		dateStr = matches[0]
+		dateStr = strings.ReplaceAll(dateStr, " - TA ", "")
+		i, err := strconv.Atoi(dateStr)
+		if err == nil {
+			date.Year = i
+		}
+	}
+
+	return date
+}
+
+func (pkgData packageData) getSpseVer() string {
+	ver := pkgData[9]
+	if i, err := strconv.Atoi(ver); err == nil {
+		if i > 0 {
+			return "spse 4." + strconv.Itoa(i)
+		}
+
+		return "spse 3"
+	}
+
+	return ""
 }

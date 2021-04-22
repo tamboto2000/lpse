@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strconv"
 )
 
@@ -31,23 +32,38 @@ type Packages struct {
 }
 
 type Package struct {
-	Code        string `json:"code,omitempty"`
-	PackageName string `json:"packageName,omitempty"`
-	Agency      string `json:"agency,omitempty"`
-	Stage       string `json:"stage,omitempty"`
-	StageURl    string `json:"stageURl,omitempty"`
-	HPS         int    `json:"hps,omitempty"`
-	// Sistem Pengadaan
-	ProcurementSystem string `json:"procurementSystem,omitempty"`
-	HPSStr            string `json:"hpsStr,omitempty"`
-	Status            string `json:"status,omitempty"`
-	// Nilai Pagu Paket
-	Ceiling     int    `json:"ceiling,omitempty"`
-	Category    string `json:"category,omitempty"`
-	Description string `json:"description,omitempty"`
-	CreatedAt   string `json:"createdAt,omitempty"`
+	Code                  string   `json:"code,omitempty"`
+	PackageName           string   `json:"packageName,omitempty"`
+	Agency                string   `json:"agency,omitempty"`
+	Stage                 string   `json:"stage,omitempty"`
+	StageURl              string   `json:"stageURl,omitempty"`
+	ProcurementSystem     string   `json:"procurementSystem,omitempty"`
+	HPSStr                string   `json:"hpsStr,omitempty"`
+	Status                string   `json:"status,omitempty"`
+	SPSEVer               string   `json:"spseVer,omitempty"`
+	Category              string   `json:"category,omitempty"`
+	RUPCode               string   `json:"rupCode,omitempty"`
+	FundSource            string   `json:"fundSource,omitempty"`
+	CreatedAt             Date     `json:"createdAt,omitempty"`
+	Description           string   `json:"description,omitempty"`
+	WorkUnit              string   `json:"workUnit,omitempty"`
+	FiscalYear            string   `json:"fiscalYear,omitempty"`
+	Ceiling               float64  `json:"ceiling,omitempty"`
+	HPS                   float64  `json:"hps,omitempty"`
+	PaymentMethod         string   `json:"paymentMethod,omitempty"`
+	WorkLocations         []string `json:"workLocations,omitempty"`
+	BusinessQualification string   `json:"businessQualification,omitempty"`
+
+	// TODO
+	// Get and format 'Syarat Kualifikasi'
 
 	cl *Client
+}
+
+type Date struct {
+	Year  int    `json:"year,omitempty"`
+	Month string `json:"month,omitempty"`
+	Day   int    `json:"day,omitempty"`
 }
 
 // Package categories
@@ -95,6 +111,8 @@ func (pkgs *Packages) Next(page int) bool {
 			ProcurementSystem: rawPkg.getProcSys(),
 			Status:            rawPkg.getStatus(),
 			Category:          rawPkg.getCategory(),
+			CreatedAt:         rawPkg.getDate(),
+			SPSEVer:           rawPkg.getSpseVer(),
 			cl:                pkgs.cl,
 		})
 	}
@@ -109,6 +127,49 @@ func (pkgs *Packages) Next(page int) bool {
 	pkgs.ItemsFilteredTotal = rawPkgs.RecordsFiltered
 
 	return true
+}
+
+func (pkg *Package) Announcement() error {
+	req, err := http.NewRequest("GET", host+"/eproc4/lelang/"+pkg.Code+"/pengumumanlelang", nil)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
+	req.Header.Set("Accept-Encoding", "gzip")
+	req.Header.Set("Referer", host+"/")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
+
+	cookies := pkg.cl.cookies.get()
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode > 200 {
+		return errors.New(string(body))
+	}
+
+	pkg.cl.cookies.set(resp.Cookies())
+
+	f, _ := os.Create("pengumuman.html")
+	f.Write(body)
+	f.Close()
+
+	return nil
 }
 
 func (cl *Client) reqPackageList(draw, start, length int, agency, search, category string) (*rawPackageList, error) {
