@@ -118,6 +118,7 @@ func isNodeMatch(ty html.NodeType, data, namespace, key, val string, node *Node)
 
 func parseFromNode(root *html.Node) *Node {
 	newNode := new(Node)
+	newNode.Node = root
 
 	for c := root.FirstChild; c != nil; c = c.NextSibling {
 		if result := parseFromNode(c); result != nil {
