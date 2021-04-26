@@ -5,8 +5,12 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strconv"
+	"strings"
+	"time"
+
+	"github.com/tamboto2000/lpse/html_parse"
+	"golang.org/x/net/html"
 )
 
 type rawPackageList struct {
@@ -61,9 +65,10 @@ type Package struct {
 }
 
 type Date struct {
-	Year  int    `json:"year,omitempty"`
-	Month string `json:"month,omitempty"`
-	Day   int    `json:"day,omitempty"`
+	Year    int    `json:"year,omitempty"`
+	Month   string `json:"month,omitempty"`
+	MontInt int    `json:"monthInt,omitempty"`
+	Day     int    `json:"day,omitempty"`
 }
 
 // Package categories
@@ -74,6 +79,21 @@ var (
 	IndividualConsultancy     = "KONSULTANSI_PERORANGAN"
 	Others                    = "JASA_LAINNYA"
 )
+
+var monthMap = map[string]string{
+	"Januari":   "January",
+	"Februari":  "February",
+	"Maret":     "March",
+	"April":     "April",
+	"Mei":       "May",
+	"Juni":      "June",
+	"Juli":      "July",
+	"Agustus":   "August",
+	"September": "September",
+	"Oktober":   "October",
+	"November":  "November",
+	"Desember":  "December",
+}
 
 func (cl *Client) Packages(pageSize int, agency, search, category string) *Packages {
 	return &Packages{
@@ -164,10 +184,7 @@ func (pkg *Package) Announcement() error {
 	}
 
 	pkg.cl.cookies.set(resp.Cookies())
-
-	f, _ := os.Create("pengumuman.html")
-	f.Write(body)
-	f.Close()
+	parseAnnouncement(body, pkg)
 
 	return nil
 }
@@ -236,4 +253,97 @@ func (cl *Client) reqPackageList(draw, start, length int, agency, search, catego
 	cl.cookies.set(resp.Cookies())
 
 	return rawPackageList, nil
+}
+
+func parseAnnouncement(raw []byte, pkg *Package) {
+	rootNode, err := html_parse.ParseBytes(raw)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// extract RUPCode and FundSource
+	newNodes := rootNode.SearchAllNode(html.ElementNode, "tr", "", "", "")
+	for _, newNode := range newNodes {
+		if innerNode1 := newNode.SearchNode(html.ElementNode, "th", "", "", ""); innerNode1 != nil {
+			if innerNode2 := innerNode1.SearchNode(html.TextNode, "", "", "", ""); innerNode2 != nil {
+				if innerNode2.Data == "Rencana Umum Pengadaan" {
+					if innerNode3 := newNode.SearchNode(html.ElementNode, "table", "", "class", "table table-condensed"); innerNode3 != nil {
+						innerNode4s := innerNode3.SearchAllNode(html.ElementNode, "td", "", "", "")
+						if len(innerNode4s) > 0 {
+							pkg.RUPCode = innerNode4s[0].Childs[0].Data
+							pkg.FundSource = innerNode4s[2].Childs[0].Data
+						}
+					}
+				}
+
+				// CreatedAt
+				if innerNode2.Data == "Tanggal Pembuatan" {
+					if innerNode3 := newNode.SearchNode(html.ElementNode, "td", "", "", ""); innerNode3 != nil {
+						dateStr := strings.TrimSpace(innerNode3.Childs[0].Data)
+						dateSplit := strings.Split(dateStr, " ")
+						dateSplit[1] = monthMap[dateSplit[1]]
+						date, err := time.Parse("02 January 2006", strings.Join(dateSplit, " "))
+						if err == nil {
+							pkg.CreatedAt = Date{
+								Year:    date.Year(),
+								Month:   date.Month().String(),
+								MontInt: int(date.Month()),
+								Day:     date.Day(),
+							}
+						}
+					}
+				}
+
+				// FiscalYear
+				if innerNode2.Data == "Tahun Anggaran" {
+					if innerNode3 := newNode.SearchNode(html.ElementNode, "td", "", "", ""); innerNode3 != nil {
+						pkg.FiscalYear = strings.TrimSpace(innerNode3.Childs[0].Data)
+					}
+				}
+
+				if innerNode2.Data == "Nilai Pagu Paket" {
+					innerNode3s := newNode.SearchAllNode(html.ElementNode, "td", "", "", "")
+					if len(innerNode3s) == 2 {
+						// Ceiling
+						innerNode3 := innerNode3s[0]
+						priceStr := innerNode3.Childs[0].Data
+						priceStr = strings.ReplaceAll(priceStr, ".", "")
+						priceStr = strings.ReplaceAll(priceStr, ",", ".")
+						priceStr = strings.ReplaceAll(priceStr, "Rp ", "")
+						price, err := strconv.ParseFloat(priceStr, 64)
+						if err == nil {
+							pkg.Ceiling = price
+						}
+
+						// HPS
+						innerNode3 = innerNode3s[0]
+						priceStr = innerNode3.Childs[0].Data
+						priceStr = strings.ReplaceAll(priceStr, ".", "")
+						priceStr = strings.ReplaceAll(priceStr, ",", ".")
+						priceStr = strings.ReplaceAll(priceStr, "Rp ", "")
+						price, err = strconv.ParseFloat(priceStr, 64)
+						if err == nil {
+							pkg.HPS = price
+						}
+					}
+				}
+
+				// PaymentMethod
+				if innerNode2.Data == "Jenis Kontrak" {
+					if innerNode3 := newNode.SearchNode(html.ElementNode, "td", "", "", ""); innerNode3 != nil {
+						pkg.PaymentMethod = innerNode3.Childs[0].Data
+					}
+				}
+
+				// WorkLocations
+				if innerNode2.Data == "Lokasi Pekerjaan" {
+					if innerNode3s := newNode.SearchAllNode(html.ElementNode, "li", "", "", ""); innerNode3s != nil {
+						for _, innerNode3 := range innerNode3s {
+							pkg.WorkLocations = append(pkg.WorkLocations, innerNode3.Childs[0].Data)
+						}
+					}
+				}
+			}
+		}
+	}
 }
