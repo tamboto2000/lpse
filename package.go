@@ -151,7 +151,7 @@ func (pkgs *Packages) Next(page int) bool {
 	return true
 }
 
-func (pkg *Package) Announcement() error {
+func (pkg *Package) GetDetail() error {
 	req, err := http.NewRequest("GET", host+"/eproc4/lelang/"+pkg.Code+"/pengumumanlelang", nil)
 	if err != nil {
 		return err
@@ -186,7 +186,7 @@ func (pkg *Package) Announcement() error {
 	}
 
 	pkg.cl.cookies.set(resp.Cookies())
-	parseAnnouncement(body, pkg)
+	parseDetail(body, pkg)
 
 	return nil
 }
@@ -257,7 +257,7 @@ func (cl *Client) reqPackageList(draw, start, length int, agency, search, catego
 	return rawPackageList, nil
 }
 
-func parseAnnouncement(raw []byte, pkg *Package) {
+func parseDetail(raw []byte, pkg *Package) {
 	rootNode, err := html_parse.ParseBytes(raw)
 	if err != nil {
 		panic(err.Error())
