@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -57,6 +58,7 @@ type Package struct {
 	PaymentMethod         string   `json:"paymentMethod,omitempty"`
 	WorkLocations         []string `json:"workLocations,omitempty"`
 	BusinessQualification string   `json:"businessQualification,omitempty"`
+	ParticipantCount      int      `json:"participantCount,omitempty"`
 
 	// TODO
 	// Get and format 'Syarat Kualifikasi'
@@ -340,6 +342,21 @@ func parseAnnouncement(raw []byte, pkg *Package) {
 					if innerNode3s := newNode.SearchAllNode(html.ElementNode, "li", "", "", ""); innerNode3s != nil {
 						for _, innerNode3 := range innerNode3s {
 							pkg.WorkLocations = append(pkg.WorkLocations, innerNode3.Childs[0].Data)
+						}
+					}
+				}
+
+				// ParticipantCount
+				if innerNode2.Data == "Peserta Tender" {
+					if innerNode3 := newNode.SearchNode(html.ElementNode, "td", "", "", ""); innerNode3 != nil {
+						rgx := regexp.MustCompile(`^[0-9.]*`)
+						matches := rgx.FindAllString(innerNode3.Childs[0].Data, 1)
+						if matches != nil {
+							iStr := strings.ReplaceAll(matches[0], ".", "")
+							i, err := strconv.Atoi(iStr)
+							if err == nil {
+								pkg.ParticipantCount = i
+							}
 						}
 					}
 				}
